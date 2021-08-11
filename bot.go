@@ -86,6 +86,12 @@ func continueOngoingReport(report *reportData, content, userID string) {
 		return
 	}
 
+	if lowerCaseContent == config.BotDMCommandPrefix+config.BotDMCommandCancel {
+		// Someone wants to cancel their report
+		deleteOngoingReport(userID)
+		return
+	}
+
 	// TODO add attachments check
 
 	if !isValidAnswer(report, content) {
@@ -130,6 +136,11 @@ func handleSubmittingProcess(report *reportData, userID string) {
 
 	sendMessageToDM(baseString, userID)
 	sendMessageToDM(generateFinalBugReport(report, true), userID)
+}
+
+func deleteOngoingReport(userID string) {
+	sendMessageToDM(config.Messages.CancellingReport, userID)
+	removeReportAndUserFromCache(userID)
 }
 
 func removeReportAndUserFromCache(userID string) {
@@ -270,6 +281,7 @@ type basicConfig struct {
 	BotDMCommandPrefix string `json:"bot_dm_command_prefix"`
 	BotDMCommandSubmit string `json:"bot_dm_command_submit"`
 	BotDMCommandEdit   string `json:"bot_dm_command_edit"`
+	BotDMCommandCancel string `json:"bot_dm_command_cancel"`
 
 	ReportChannelID      string           `json:"report_channel_id"`
 	Questions            []reportQuestion `json:"questions"`
@@ -279,6 +291,7 @@ type basicConfig struct {
 }
 
 type messagesDataConfig struct {
+	CancellingReport             string `json:"cancelling_report"`
 	FinalReportSubmitAlmostReady string `json:"final_report_submit_almost_ready"`
 	InvalidFixedQuestionAnswer   string `json:"invalid_answer_to_question"`
 	InteractionNotAllowed        string `json:"interaction_not_allowed"`
