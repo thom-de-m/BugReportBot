@@ -1,0 +1,2 @@
+# Ignore the config file it self, we don't want any credentials on Github etc!
+/config/config.json
