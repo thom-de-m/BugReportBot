@@ -81,6 +81,12 @@ func continueOngoingReport(report *reportData, content, userID string) {
 		return
 	}
 
+	if report.canEdit && strings.Split(lowerCaseContent, " ")[0] == config.BotDMCommandPrefix+config.BotDMCommandEdit {
+		// Someone wants to edit a specific question
+		handleEditReport(report, userID, content)
+		return
+	}
+
 	// TODO add attachments check
 
 	if !isValidAnswer(report, content) {
@@ -93,17 +99,44 @@ func continueOngoingReport(report *reportData, content, userID string) {
 		return
 	}
 
-	if !report.hasReachedEnd {
+	if report.shouldReadAnswer {
 		report.data[report.currentQuestionIndex].answer = strings.ReplaceAll(content, "@", "at")
 	}
 
 	// If this validates true that means we are at the end of the report!
-	if report.currentQuestionIndex+1 == uint(len(report.data)) {
+	if report.currentQuestionIndex+1 == uint(len(report.data)) || report.hasReachedEnd {
+		if report.hasReachedEnd {
+			report.currentQuestionIndex = uint(len(report.data)) - 1
+		}
 		handleSubmittingProcess(report, userID)
 		return
 	}
 
 	report.currentQuestionIndex += 1
+	sendReportQuestion(report, userID, false)
+}
+
+func handleEditReport(report *reportData, userID, content string) {
+	split := strings.Split(content, " ")
+	if len(split) != 2 {
+		sendMessageToDM(config.Messages.ValidNumber, userID)
+		return
+	}
+
+	value, parseErr := strconv.Atoi(split[1])
+	if parseErr != nil {
+		sendMessageToDM(config.Messages.ValidNumber, userID)
+		return
+	}
+
+	if value <= 0 || value > len(report.data) {
+		sendMessageToDM(config.Messages.ValidReportNumber, userID)
+		return
+	}
+
+	report.shouldReadAnswer = true
+	report.canEdit = false
+	report.currentQuestionIndex = uint(value) - 1
 	sendReportQuestion(report, userID, false)
 }
 
@@ -118,6 +151,7 @@ func handleSubmittingProcess(report *reportData, userID string) {
 	report.canEdit = true
 	report.canSubmit = true
 	report.hasReachedEnd = true
+	report.shouldReadAnswer = false
 
 	baseString := config.Messages.FinalReportSubmitAlmostReady
 	baseString = strings.ReplaceAll(baseString, "{{SUBMIT_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandSubmit)
@@ -211,6 +245,7 @@ func startNewReportConversation(userID string, interactionButtonChannelID string
 		canEdit:              false,
 		canSubmit:            false,
 		hasReachedEnd:        false,
+		shouldReadAnswer:     true,
 	}
 
 	if !sendReportQuestion(report, userID, true) {
@@ -280,6 +315,8 @@ type basicConfig struct {
 }
 
 type messagesDataConfig struct {
+	ValidReportNumber            string `json:"valid_report_number"`
+	ValidNumber                  string `json:"valid_number"`
 	CancellingReport             string `json:"cancelling_report"`
 	FinalReportSubmitAlmostReady string `json:"final_report_submit_almost_ready"`
 	InvalidFixedQuestionAnswer   string `json:"invalid_answer_to_question"`
@@ -297,6 +334,7 @@ type reportData struct {
 	canSubmit            bool
 	canEdit              bool
 	hasReachedEnd        bool
+	shouldReadAnswer     bool
 }
 
 type reportQuestionData struct {
