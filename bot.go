@@ -141,7 +141,7 @@ func handleEditReport(report *reportData, userID, content string) {
 }
 
 func handleFinalSubmission(report *reportData, userID string) {
-	botSession.ChannelMessageSend(config.ReportChannelID, generateFinalBugReport(report, false))
+	botSession.ChannelMessageSend(config.ReportChannelID, generateFinalBugReport(report, false, userID))
 	removeReportAndUserFromCache(userID)
 }
 
@@ -158,7 +158,7 @@ func handleSubmittingProcess(report *reportData, userID string) {
 	baseString = strings.ReplaceAll(baseString, "{{EDIT_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandEdit)
 
 	sendMessageToDM(baseString, userID)
-	sendMessageToDM(generateFinalBugReport(report, true), userID)
+	sendMessageToDM(generateFinalBugReport(report, true, userID), userID)
 }
 
 func deleteOngoingReport(userID string) {
@@ -173,7 +173,7 @@ func removeReportAndUserFromCache(userID string) {
 	delete(currentOngoingReports, userID)
 }
 
-func generateFinalBugReport(report *reportData, highlightQuestionNumber bool) string {
+func generateFinalBugReport(report *reportData, highlightQuestionNumber bool, userID string) string {
 	var builder strings.Builder
 	for index, value := range report.data {
 		if highlightQuestionNumber {
@@ -187,7 +187,9 @@ func generateFinalBugReport(report *reportData, highlightQuestionNumber bool) st
 		builder.WriteString("\n\n")
 	}
 
-	// TODO add attachments, the user who submitted it and possibly a last message.
+	builder.WriteString(strings.ReplaceAll(config.Messages.EndMessageReport, "{{USER_TAG}}", "<@"+userID+">"))
+
+	// TODO add attachments.
 
 	return builder.String()
 }
@@ -315,6 +317,7 @@ type basicConfig struct {
 }
 
 type messagesDataConfig struct {
+	EndMessageReport             string `json:"end_message_report"`
 	ValidReportNumber            string `json:"valid_report_number"`
 	ValidNumber                  string `json:"valid_number"`
 	CancellingReport             string `json:"cancelling_report"`
