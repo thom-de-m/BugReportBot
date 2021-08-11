@@ -25,9 +25,10 @@ func handleIncomingMessage(session *discordgo.Session, message *discordgo.Messag
 
 	// Check if this person already is in an ongoing conversation with the bot
 	currentReportsMutex.RLock()
-	if _, ok := currentOngoingReports[message.Author.ID]; ok {
+	if report, ok := currentOngoingReports[message.Author.ID]; ok {
 		// The user is already in an ongoing conversation, continue it
 		currentReportsMutex.RUnlock()
+		continueOngoingReport(report, message.Content, message.Author.ID)
 	} else {
 		// The user is not in an ongoing conversation, make sure to start a new one
 		currentReportsMutex.RUnlock()

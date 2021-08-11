@@ -78,6 +78,105 @@ func main() {
 	log.Println("Graceful shutdown!")
 }
 
+func continueOngoingReport(report *reportData, content, userID string) {
+	lowerCaseContent := strings.ToLower(content)
+	if report.canSubmit && lowerCaseContent == config.BotDMCommandPrefix+config.BotDMCommandSubmit {
+		// Someone wants to submit their report, lets do it!
+		handleFinalSubmission(report, userID)
+		return
+	}
+
+	// TODO add attachments check
+
+	if !isValidAnswer(report, content) {
+		baseFormat := config.Messages.InvalidFixedQuestionAnswer
+		for _, value := range report.data[report.currentQuestionIndex].question.FixedAnswers {
+			baseFormat += "\n- " + value
+		}
+
+		sendMessageToDM(baseFormat, userID)
+		return
+	}
+
+	if !report.hasReachedEnd {
+		report.data[report.currentQuestionIndex].answer = strings.ReplaceAll(content, "@", "at")
+	}
+
+	// If this validates true that means we are at the end of the report!
+	if report.currentQuestionIndex+1 == uint(len(report.data)) {
+		handleSubmittingProcess(report, userID)
+		return
+	}
+
+	report.currentQuestionIndex += 1
+	sendReportQuestion(report, userID, false)
+}
+
+func handleFinalSubmission(report *reportData, userID string) {
+	botSession.ChannelMessageSend(config.ReportChannelID, generateFinalBugReport(report, false))
+	removeReportAndUserFromCache(userID)
+}
+
+func handleSubmittingProcess(report *reportData, userID string) {
+	// TODO check if the report isn't too big for a message!
+
+	report.canEdit = true
+	report.canSubmit = true
+	report.hasReachedEnd = true
+
+	baseString := config.Messages.FinalReportSubmitAlmostReady
+	baseString = strings.ReplaceAll(baseString, "{{SUBMIT_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandSubmit)
+	baseString = strings.ReplaceAll(baseString, "{{EDIT_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandEdit)
+
+	sendMessageToDM(baseString, userID)
+	sendMessageToDM(generateFinalBugReport(report, true), userID)
+}
+
+func removeReportAndUserFromCache(userID string) {
+	currentReportsMutex.Lock()
+	defer currentReportsMutex.Unlock()
+
+	delete(currentOngoingReports, userID)
+}
+
+func generateFinalBugReport(report *reportData, highlightQuestionNumber bool) string {
+	var builder strings.Builder
+	for index, value := range report.data {
+		if highlightQuestionNumber {
+			builder.WriteString("**#")
+			builder.WriteString(strconv.Itoa(index + 1))
+			builder.WriteString("** ")
+		}
+		builder.WriteString(value.question.PrettyFormat)
+		builder.WriteString("\n")
+		builder.WriteString(value.answer)
+		builder.WriteString("\n\n")
+	}
+
+	// TODO add attachments, the user who submitted it and possibly a last message.
+
+	return builder.String()
+}
+
+func isValidAnswer(report *reportData, content string) bool {
+	data := report.data[report.currentQuestionIndex]
+	if len(data.question.FixedAnswers) > 0 {
+		formattedContent := strings.TrimSpace(strings.ToLower(content))
+		validAnswer := false
+
+		for _, value := range data.question.fixedAnswersFormatted {
+			if value == formattedContent {
+				validAnswer = true
+				break
+			}
+		}
+
+		return validAnswer
+	}
+
+	return true
+}
+
 func startNewReportConversation(userID string, interactionButtonChannelID string) (succeeded bool) {
 	currentReportsMutex.Lock()
 	defer currentReportsMutex.Unlock()
@@ -91,7 +190,7 @@ func startNewReportConversation(userID string, interactionButtonChannelID string
 
 	questions := make([]reportQuestionData, len(config.Questions))
 	for index, question := range config.Questions {
-		fixedFormats := make([]string, len(config.Questions))
+		fixedFormats := make([]string, len(config.Questions[index].FixedAnswers))
 		for fixedIndex, fixedAnswer := range question.FixedAnswers {
 			fixedFormats[fixedIndex] = strings.ToLower(fixedAnswer)
 		}
@@ -105,13 +204,16 @@ func startNewReportConversation(userID string, interactionButtonChannelID string
 	}
 
 	report := &reportData{
-		currentQuestionIndex: 1,
+		currentQuestionIndex: 0,
 		lastInteraction:      time.Now(),
 		data:                 questions,
 		lock:                 new(sync.Mutex),
+		canEdit:              false,
+		canSubmit:            false,
+		hasReachedEnd:        false,
 	}
 
-	if !sendFirstQuestion(report, userID) {
+	if !sendReportQuestion(report, userID, true) {
 		sendDMFailedMessageIfNeeded(userID, interactionButtonChannelID)
 		return false
 	}
@@ -135,22 +237,39 @@ func isAlreadyInReportProcess(userID string) bool {
 	return ok
 }
 
-func sendFirstQuestion(report *reportData, userID string) (succeeded bool) {
-	channel, channelErr := botSession.UserChannelCreate(userID)
+func sendReportQuestion(report *reportData, userID string, firstMessage bool) (succeeded bool) {
+	formattedFirstQuestion := ""
+
+	if firstMessage {
+		formattedFirstQuestion = strings.ReplaceAll(config.Messages.WelcomeMessage, "{{REPORT_TIMEOUT}}", strconv.Itoa(int(config.ReportTimeoutMinutes))) + "\n\n"
+	}
+
+	formattedFirstQuestion += report.data[report.currentQuestionIndex].question.Question
+	return sendMessageToDM(formattedFirstQuestion, userID)
+}
+
+func sendMessageToDM(content, userID string) (succeeded bool) {
+	channel, channelErr := getUserChannel(userID)
 	if channelErr != nil {
 		return false
 	}
 
-	formattedFirstQuestion := strings.ReplaceAll(config.Messages.WelcomeMessage, "{{REPORT_TIMEOUT}}", strconv.Itoa(int(config.ReportTimeoutMinutes))) + "\n\n" + report.data[0].question.Question
-	_, messageErr := botSession.ChannelMessageSend(channel.ID, formattedFirstQuestion)
+	_, messageErr := botSession.ChannelMessageSend(channel.ID, content)
 	return messageErr == nil
 }
 
+func getUserChannel(userID string) (channel *discordgo.Channel, err error) {
+	return botSession.UserChannelCreate(userID)
+}
+
 type basicConfig struct {
-	BotToken           string `json:"bot_token"`
-	ApplicationID      string `json:"application_id"`
-	GuildID            string `json:"guild_id"`
+	BotToken      string `json:"bot_token"`
+	ApplicationID string `json:"application_id"`
+	GuildID       string `json:"guild_id"`
+
 	BotDMCommandPrefix string `json:"bot_dm_command_prefix"`
+	BotDMCommandSubmit string `json:"bot_dm_command_submit"`
+	BotDMCommandEdit   string `json:"bot_dm_command_edit"`
 
 	ReportChannelID      string           `json:"report_channel_id"`
 	Questions            []reportQuestion `json:"questions"`
@@ -160,10 +279,12 @@ type basicConfig struct {
 }
 
 type messagesDataConfig struct {
-	InteractionNotAllowed    string `json:"interaction_not_allowed"`
-	InteractionButtonContent string `json:"interaction_button_content"`
-	UnableToDMPerson         string `json:"unable_to_dm_person"`
-	WelcomeMessage           string `json:"welcome_message"`
+	FinalReportSubmitAlmostReady string `json:"final_report_submit_almost_ready"`
+	InvalidFixedQuestionAnswer   string `json:"invalid_answer_to_question"`
+	InteractionNotAllowed        string `json:"interaction_not_allowed"`
+	InteractionButtonContent     string `json:"interaction_button_content"`
+	UnableToDMPerson             string `json:"unable_to_dm_person"`
+	WelcomeMessage               string `json:"welcome_message"`
 }
 
 type reportData struct {
@@ -171,6 +292,9 @@ type reportData struct {
 	lastInteraction      time.Time
 	data                 []reportQuestionData
 	lock                 *sync.Mutex
+	canSubmit            bool
+	canEdit              bool
+	hasReachedEnd        bool
 }
 
 type reportQuestionData struct {
