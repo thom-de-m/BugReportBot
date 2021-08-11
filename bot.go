@@ -38,8 +38,6 @@ func init() {
 		log.Println("Unable to unmarshal file \"config.json\", are you sure the format is correct?")
 		panic(jsonErr)
 	}
-
-	initResponses()
 }
 
 func main() {
@@ -52,22 +50,13 @@ func main() {
 	botSession.AddHandler(handleIncomingMessage)
 	botSession.AddHandler(handleInteractions)
 
-	botSession.Identify.Intents = discordgo.IntentsDirectMessages
+	botSession.Identify.Intents = discordgo.IntentsDirectMessages | discordgo.IntentsGuildMessages
 
 	connectErr = botSession.Open()
 	if connectErr != nil {
 		panic(connectErr)
 	}
 	defer botSession.Close()
-
-	_, slashCommandErr := botSession.ApplicationCommandCreate(config.ApplicationID, config.GuildID, &discordgo.ApplicationCommand{
-		Name:        "bugreportbutton",
-		Description: "Used to create a button for submitting a bug report",
-	})
-	if slashCommandErr != nil {
-		log.Println("Unable to create the slash command!")
-		panic(slashCommandErr)
-	}
 
 	log.Println("Bot is online!")
 
@@ -172,7 +161,7 @@ func generateFinalBugReport(report *reportData, highlightQuestionNumber bool) st
 func isValidAnswer(report *reportData, content string) bool {
 	data := report.data[report.currentQuestionIndex]
 	if len(data.question.FixedAnswers) > 0 {
-		formattedContent := strings.TrimSpace(strings.ToLower(content))
+		formattedContent := strings.ToLower(content)
 		validAnswer := false
 
 		for _, value := range data.question.fixedAnswersFormatted {
@@ -274,18 +263,18 @@ func getUserChannel(userID string) (channel *discordgo.Channel, err error) {
 }
 
 type basicConfig struct {
-	BotToken      string `json:"bot_token"`
-	ApplicationID string `json:"application_id"`
-	GuildID       string `json:"guild_id"`
+	BotToken string `json:"bot_token"`
+	GuildID  string `json:"guild_id"`
 
 	BotDMCommandPrefix string `json:"bot_dm_command_prefix"`
 	BotDMCommandSubmit string `json:"bot_dm_command_submit"`
 	BotDMCommandEdit   string `json:"bot_dm_command_edit"`
 	BotDMCommandCancel string `json:"bot_dm_command_cancel"`
 
-	ReportChannelID      string           `json:"report_channel_id"`
-	Questions            []reportQuestion `json:"questions"`
-	ReportTimeoutMinutes uint             `json:"report_timeout_minutes"`
+	SubmitReportChannelID string           `json:"submit_report_channel_id"`
+	ReportChannelID       string           `json:"report_channel_id"`
+	Questions             []reportQuestion `json:"questions"`
+	ReportTimeoutMinutes  uint             `json:"report_timeout_minutes"`
 
 	Messages messagesDataConfig `json:"messages_data"`
 }
