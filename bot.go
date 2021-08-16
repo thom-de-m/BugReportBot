@@ -272,7 +272,9 @@ func startNewReportConversation(userID string, interactionButtonChannelID string
 	// TODO add cooldown function in here.
 
 	if isAlreadyInReportProcess(userID) {
-		// TODO maybe provide a message that they are already making a report and can cancel it with a command?
+		baseString := config.Messages.AlreadyCreatingReport
+		baseString = strings.ReplaceAll(baseString, "((CANCEL_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandCancel)
+		sendMessageToDM(baseString, userID)
 		return
 	}
 
@@ -372,6 +374,7 @@ type basicConfig struct {
 }
 
 type messagesDataConfig struct {
+	AlreadyCreatingReport        string `json:"already_creating_report"`
 	SuccessfullySubmittedReport  string `json:"thanks_for_submitting_a_report"`
 	ReachedMaxAttachments        string `json:"reached_max_attachments"`
 	Attachments                  string `json:"attachments"`
