@@ -359,7 +359,6 @@ func getUserChannel(userID string) (channel *discordgo.Channel, err error) {
 
 type basicConfig struct {
 	BotToken string `json:"bot_token"`
-	GuildID  string `json:"guild_id"`
 
 	BotDMCommandPrefix string `json:"bot_dm_command_prefix"`
 	BotDMCommandSubmit string `json:"bot_dm_command_submit"`
