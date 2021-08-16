@@ -184,6 +184,7 @@ func handleEditReport(report *reportData, userID, content string) {
 func handleFinalSubmission(report *reportData, userID string) {
 	botSession.ChannelMessageSend(config.ReportChannelID, generateFinalBugReport(report, false, userID))
 	removeReportAndUserFromCache(userID)
+	sendMessageToDM(config.Messages.SuccessfullySubmittedReport, userID)
 }
 
 func handleSubmittingProcess(report *reportData, userID string) {
@@ -371,6 +372,7 @@ type basicConfig struct {
 }
 
 type messagesDataConfig struct {
+	SuccessfullySubmittedReport  string `json:"thanks_for_submitting_a_report"`
 	ReachedMaxAttachments        string `json:"reached_max_attachments"`
 	Attachments                  string `json:"attachments"`
 	AttachmentUploaded           string `json:"attachment_uploaded_with_report"`
