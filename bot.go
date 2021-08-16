@@ -274,7 +274,9 @@ func startNewReportConversation(userID string, interactionButtonChannelID string
 	if isAlreadyInReportProcess(userID) {
 		baseString := config.Messages.AlreadyCreatingReport
 		baseString = strings.ReplaceAll(baseString, "((CANCEL_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandCancel)
-		sendMessageToDM(baseString, userID)
+		if !sendMessageToDM(baseString, userID) {
+			sendDMFailedMessageIfNeeded(userID, interactionButtonChannelID)
+		}
 		return
 	}
 
