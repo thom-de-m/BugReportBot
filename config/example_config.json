@@ -1,0 +1,62 @@
+{
+    "bot_token": "YOUR BOT TOKEN!",
+    "bot_dm_command_prefix": "!",
+    "bot_dm_command_submit": "submit",
+    "bot_dm_command_edit": "edit",
+    "bot_dm_command_cancel": "cancel",
+    "report_channel_id": "Reports channel ID",
+    "submit_report_channel_id": "Submit A Report channel ID",
+    "report_timeout_minutes": 1,
+    "report_max_attachments": 3,
+    "questions": [
+        {
+            "question": "What's the title of the Bug Report you want to make?",
+            "pretty_format": "**Bug Title:**"
+        },
+        {
+            "question": "What platform are you running? (PC/Mac/XboxOne/XboxSeriesS/XboxSeriesX/PS4/PS5/Switch)",
+            "pretty_format": "**Platform:**",
+            "fixed_answers": [
+                "PC",
+                "Mac",
+                "XboxOne",
+                "XboxSeriesS",
+                "XboxSeriesX",
+                "PS4",
+                "PS5",
+                "Switch"
+            ]
+        },
+        {
+            "question": "Which language are you using in the game it self?",
+            "pretty_format": "**Language:**"
+        },
+        {
+            "question": "Please type out the bug in as much detail as possible!",
+            "pretty_format": "**Details:**"
+        },
+        {
+            "question": "Please provide any reproduction steps so we can do this bug ourselves!",
+            "pretty_format": "**Reproduction Steps:**"
+        }
+    ],
+    "messages_data": {
+        "report_timeout": "**Your report has been cancelled due to being inactive!**",
+        "already_creating_report": "You're already in the process of creating a report. If you want to cancel the current report please use the command **((CANCEL_COMMAND}}** or alternatively keep answering the current on going question.",
+        "thanks_for_submitting_a_report": "You've successfully submitted your report. Thank you for your time!",
+        "reached_max_attachments": "You've already used all available attachment slots, this attachment will not be uploaded in your final report!\nFeel free to continue answering the current question.",
+        "attachments": "\n\n**Attachments:**",
+        "attachment_uploaded_with_report": "You've successfully uploaded an attachment to your report, you can upload {{ATTACHMENTS_LEFT}} more attachment(s)!\nFeel free to continue answering the current question.",
+        "attachment_uploaded_with_report_plural": "You've successfully uploaded multiple attachments to your report, you can upload {{ATTACHMENTS_LEFT}} more attachment(s)!\nFeel free to continue answering the current question.",
+        "end_message_report": "\n\n**Submitted by:** {{USER_TAG}}",
+        "valid_report_number": "Please fill in a valid number for the question to edit!",
+        "valid_number": "Please fill in a valid number!",
+        "cancelling_report": "You've cancelled your report.",
+        "final_report_submit_almost_ready": "Before submitting your report you can edit it if you want to!\nHave a look at the final result and see if you're happy with it.\n\nIf you want to edit it type **{{EDIT_COMMAND}} <question number>** where **<question number>** is the number next to the title of an answer!\nAlternatively type **{{SUBMIT_COMMAND}}** to submit the report or **{{CANCEL_COMMAND}}** to cancel the report.",
+        "invalid_answer_to_question": "Please answer with one of the following questions:",
+        "interaction_not_allowed": "You're not allowed to use this!",
+        "interaction_button_content": "Hi! In here you can submit a bug report.\nAll you need to do is click the \"Start A Report\" button below!",
+        "unable_to_dm_person": "{{USER_TAG}} I'm unable to send you a Direct Message. Make sure you have opened your Direct Messages!\nYou can (temporarily) open them by right clicking the server icon -> Privacy Settings -> Enable direct messages from server members!",
+        "welcome_message": "Hello, in order to post your bug I will need some more information from you!\nI'll ask some questions and you may answer them if you like to.\n\nJust remember a couple of things!\n- You'll only have {{REPORT_TIMEOUT}} minutes for every question, otherwise the report will timeout.\n- You can upload an attachment (a picture for example) at any moment during the report.\n- Bugs caused by commands should not be reported!\n- If you made a mistake you can edit this at the end of the report.\n- You can cancel a report with the command **{{CANCEL_COMMAND}}**"
+    }
+}
