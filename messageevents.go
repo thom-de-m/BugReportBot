@@ -34,7 +34,7 @@ func handleIncomingMessage(session *discordgo.Session, message *discordgo.Messag
 		defer report.lock.Unlock()
 
 		// The user is already in an ongoing conversation, continue it
-		continueOngoingReport(report, message.Content, message.Author.ID)
+		continueOngoingReport(report, message.Content, message.Author.ID, message)
 	} else {
 		// The user is not in an ongoing conversation, make sure to start a new one
 		currentReportsMutex.RUnlock()

@@ -67,7 +67,15 @@ func main() {
 	log.Println("Graceful shutdown!")
 }
 
-func continueOngoingReport(report *reportData, content, userID string) {
+func continueOngoingReport(report *reportData, content, userID string, message *discordgo.MessageCreate) {
+	// Handle attachements, if this returns true there was at least 1 attachment found
+	if handleAttachements(report, userID, message) {
+		if report.isInSubmitMenu {
+			handleSubmittingProcess(report, userID)
+		}
+		return
+	}
+
 	lowerCaseContent := strings.ToLower(content)
 	if report.canSubmit && lowerCaseContent == config.BotDMCommandPrefix+config.BotDMCommandSubmit {
 		// Someone wants to submit their report, lets do it!
@@ -86,8 +94,6 @@ func continueOngoingReport(report *reportData, content, userID string) {
 		handleEditReport(report, userID, content)
 		return
 	}
-
-	// TODO add attachments check
 
 	if !isValidAnswer(report, content) {
 		baseFormat := config.Messages.InvalidFixedQuestionAnswer
@@ -116,6 +122,40 @@ func continueOngoingReport(report *reportData, content, userID string) {
 	sendReportQuestion(report, userID, false)
 }
 
+func handleAttachements(report *reportData, userID string, message *discordgo.MessageCreate) (attachedAttachements bool) {
+	if len(message.Attachments) == 0 {
+		return false
+	}
+
+	affectedItems := 0
+	for _, attachment := range message.Attachments {
+		if uint(len(report.attachments)) >= config.ReportMaxAttachments {
+			break
+		}
+
+		report.attachments = append(report.attachments, attachment.ProxyURL)
+		affectedItems += 1
+	}
+
+	if affectedItems == 0 {
+		sendMessageToDM(config.Messages.ReachedMaxAttachments, userID)
+		return true
+	}
+
+	var baseString string
+	if affectedItems > 1 {
+		baseString = config.Messages.AttachmentUploadedPlural
+
+	} else {
+		baseString = config.Messages.AttachmentUploaded
+	}
+
+	baseString = strings.ReplaceAll(baseString, "{{ATTACHMENTS_LEFT}}", strconv.Itoa(int(config.ReportMaxAttachments)-len(report.attachments)))
+	sendMessageToDM(baseString, userID)
+
+	return true
+}
+
 func handleEditReport(report *reportData, userID, content string) {
 	split := strings.Split(content, " ")
 	if len(split) != 2 {
@@ -134,6 +174,7 @@ func handleEditReport(report *reportData, userID, content string) {
 		return
 	}
 
+	report.isInSubmitMenu = false
 	report.shouldReadAnswer = true
 	report.canEdit = false
 	report.currentQuestionIndex = uint(value) - 1
@@ -152,8 +193,10 @@ func handleSubmittingProcess(report *reportData, userID string) {
 	report.canSubmit = true
 	report.hasReachedEnd = true
 	report.shouldReadAnswer = false
+	report.isInSubmitMenu = true
 
 	baseString := config.Messages.FinalReportSubmitAlmostReady
+	baseString = strings.ReplaceAll(baseString, "{{CANCEL_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandCancel)
 	baseString = strings.ReplaceAll(baseString, "{{SUBMIT_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandSubmit)
 	baseString = strings.ReplaceAll(baseString, "{{EDIT_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandEdit)
 
@@ -184,12 +227,20 @@ func generateFinalBugReport(report *reportData, highlightQuestionNumber bool, us
 		builder.WriteString(value.question.PrettyFormat)
 		builder.WriteString("\n")
 		builder.WriteString(value.answer)
-		builder.WriteString("\n\n")
+		if index != len(report.data)-1 {
+			builder.WriteString("\n\n")
+		}
+	}
+
+	if len(report.attachments) > 0 {
+		builder.WriteString(config.Messages.Attachments)
+		for _, attachmentLink := range report.attachments {
+			builder.WriteString("\n")
+			builder.WriteString(attachmentLink)
+		}
 	}
 
 	builder.WriteString(strings.ReplaceAll(config.Messages.EndMessageReport, "{{USER_TAG}}", "<@"+userID+">"))
-
-	// TODO add attachments.
 
 	return builder.String()
 }
@@ -240,6 +291,7 @@ func startNewReportConversation(userID string, interactionButtonChannelID string
 	}
 
 	report := &reportData{
+		attachments:          make([]string, 0),
 		currentQuestionIndex: 0,
 		lastInteraction:      time.Now(),
 		data:                 questions,
@@ -248,6 +300,7 @@ func startNewReportConversation(userID string, interactionButtonChannelID string
 		canSubmit:            false,
 		hasReachedEnd:        false,
 		shouldReadAnswer:     true,
+		isInSubmitMenu:       false,
 	}
 
 	if !sendReportQuestion(report, userID, true) {
@@ -312,11 +365,16 @@ type basicConfig struct {
 	ReportChannelID       string           `json:"report_channel_id"`
 	Questions             []reportQuestion `json:"questions"`
 	ReportTimeoutMinutes  uint             `json:"report_timeout_minutes"`
+	ReportMaxAttachments  uint             `json:"report_max_attachments"`
 
 	Messages messagesDataConfig `json:"messages_data"`
 }
 
 type messagesDataConfig struct {
+	ReachedMaxAttachments        string `json:"reached_max_attachments"`
+	Attachments                  string `json:"attachments"`
+	AttachmentUploaded           string `json:"attachment_uploaded_with_report"`
+	AttachmentUploadedPlural     string `json:"attachment_uploaded_with_report_plural"`
 	EndMessageReport             string `json:"end_message_report"`
 	ValidReportNumber            string `json:"valid_report_number"`
 	ValidNumber                  string `json:"valid_number"`
@@ -333,11 +391,14 @@ type reportData struct {
 	currentQuestionIndex uint
 	lastInteraction      time.Time
 	data                 []reportQuestionData
+	attachments          []string
 	lock                 *sync.Mutex
-	canSubmit            bool
-	canEdit              bool
-	hasReachedEnd        bool
-	shouldReadAnswer     bool
+
+	isInSubmitMenu   bool
+	canSubmit        bool
+	canEdit          bool
+	hasReachedEnd    bool
+	shouldReadAnswer bool
 }
 
 type reportQuestionData struct {
