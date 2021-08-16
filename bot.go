@@ -58,6 +58,8 @@ func main() {
 	}
 	defer botSession.Close()
 
+	go startCleanupTimer()
+
 	log.Println("Bot is online!")
 
 	stop := make(chan os.Signal, 1)
@@ -65,6 +67,38 @@ func main() {
 	<-stop
 
 	log.Println("Graceful shutdown!")
+}
+
+func startCleanupTimer() {
+	ticker := time.NewTicker(10 * time.Second)
+
+	for {
+		currentTime := <-ticker.C
+		doOngoingReportCleanup(currentTime)
+	}
+}
+
+func doOngoingReportCleanup(currentTime time.Time) {
+	currentReportsMutex.Lock()
+	defer currentReportsMutex.Unlock()
+
+	markedForRemoval := make([]string, 0)
+
+	for userID, report := range currentOngoingReports {
+		// If this validates true that means the last interaction with the user has been larger than our timeout
+		if currentTime.After(report.lastInteraction.Add(time.Duration(config.ReportTimeoutMinutes) * time.Minute)) {
+			markedForRemoval = append(markedForRemoval, userID)
+		}
+	}
+
+	for _, userID := range markedForRemoval {
+		delete(currentOngoingReports, userID)
+		sendMessageToDM(config.Messages.InactiveReport, userID)
+	}
+}
+
+func markReportAsActive(report *reportData) {
+	report.lastInteraction = time.Now()
 }
 
 func continueOngoingReport(report *reportData, content, userID string, message *discordgo.MessageCreate) {
@@ -104,6 +138,10 @@ func continueOngoingReport(report *reportData, content, userID string, message *
 		sendMessageToDM(baseFormat, userID)
 		return
 	}
+
+	// From here on it's always a valid response, spam bots will get stuck on fixed questions and will eventually timeout
+	// while regular users will most likely never be that long stuck on one single question
+	markReportAsActive(report)
 
 	if report.shouldReadAnswer {
 		report.data[report.currentQuestionIndex].answer = strings.ReplaceAll(content, "@", "at")
@@ -337,6 +375,7 @@ func sendReportQuestion(report *reportData, userID string, firstMessage bool) (s
 
 	if firstMessage {
 		formattedFirstQuestion = strings.ReplaceAll(config.Messages.WelcomeMessage, "{{REPORT_TIMEOUT}}", strconv.Itoa(int(config.ReportTimeoutMinutes))) + "\n\n"
+		formattedFirstQuestion = strings.ReplaceAll(formattedFirstQuestion, "{{CANCEL_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandCancel)
 	}
 
 	formattedFirstQuestion += report.data[report.currentQuestionIndex].question.Question
@@ -375,6 +414,7 @@ type basicConfig struct {
 }
 
 type messagesDataConfig struct {
+	InactiveReport               string `json:"report_timeout"`
 	AlreadyCreatingReport        string `json:"already_creating_report"`
 	SuccessfullySubmittedReport  string `json:"thanks_for_submitting_a_report"`
 	ReachedMaxAttachments        string `json:"reached_max_attachments"`
