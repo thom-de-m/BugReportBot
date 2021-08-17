@@ -24,9 +24,6 @@ var (
 var (
 	currentOngoingReports = make(map[string]*reportData)
 	currentReportsMutex   = new(sync.RWMutex)
-
-	currentUsersOnReportCooldown = make(map[string]time.Time)
-	currentUsersOnReportMutex    = new(sync.RWMutex)
 )
 
 func init() {
@@ -106,7 +103,7 @@ func markReportAsActive(report *reportData) {
 
 func continueOngoingReport(report *reportData, content, userID string, message *discordgo.MessageCreate) {
 	// Handle attachements, if this returns true there was at least 1 attachment found
-	if handleAttachements(report, userID, message) {
+	if handleAttachments(report, userID, message) {
 		if report.isInSubmitMenu {
 			handleSubmittingProcess(report, userID)
 		}
@@ -132,7 +129,7 @@ func continueOngoingReport(report *reportData, content, userID string, message *
 		return
 	}
 
-	if !isValidAnswer(report, content) {
+	if !isValidFixedQuestionAnswer(report, content) {
 		baseFormat := config.Messages.InvalidFixedQuestionAnswer
 		for _, value := range report.data[report.currentQuestionIndex].question.FixedAnswers {
 			baseFormat += "\n- " + value
@@ -163,7 +160,7 @@ func continueOngoingReport(report *reportData, content, userID string, message *
 	sendReportQuestion(report, userID, false)
 }
 
-func handleAttachements(report *reportData, userID string, message *discordgo.MessageCreate) (attachedAttachements bool) {
+func handleAttachments(report *reportData, userID string, message *discordgo.MessageCreate) (attachedAttachements bool) {
 	if len(message.Attachments) == 0 {
 		return false
 	}
@@ -242,25 +239,6 @@ func handleFinalSubmission(report *reportData, userID string) {
 	sendMessageToDM(baseString, userID)
 }
 
-func setReportCooldownForUser(userID string) {
-	currentUsersOnReportMutex.Lock()
-	defer currentUsersOnReportMutex.Unlock()
-
-	currentUsersOnReportCooldown[userID] = time.Now().Add(time.Duration(config.ReportCooldownMinutes) * time.Minute)
-}
-
-func isUserOnReportCooldown(userID string) bool {
-	currentUsersOnReportMutex.RLock()
-	defer currentUsersOnReportMutex.RUnlock()
-
-	if cooldown, ok := currentUsersOnReportCooldown[userID]; ok {
-		if time.Now().Before(cooldown) {
-			return true
-		}
-	}
-	return false
-}
-
 func handleSubmittingProcess(report *reportData, userID string) {
 	// TODO check if the report isn't too big for a message!
 
@@ -318,25 +296,6 @@ func generateFinalBugReport(report *reportData, highlightQuestionNumber bool, us
 	builder.WriteString(strings.ReplaceAll(config.Messages.EndMessageReport, "{{USER_TAG}}", "<@"+userID+">"))
 
 	return builder.String()
-}
-
-func isValidAnswer(report *reportData, content string) bool {
-	data := report.data[report.currentQuestionIndex]
-	if len(data.question.FixedAnswers) > 0 {
-		formattedContent := strings.ToLower(content)
-		validAnswer := false
-
-		for _, value := range data.question.fixedAnswersFormatted {
-			if value == formattedContent {
-				validAnswer = true
-				break
-			}
-		}
-
-		return validAnswer
-	}
-
-	return true
 }
 
 func startNewReportConversation(userID string, interactionButtonChannelID string) {
