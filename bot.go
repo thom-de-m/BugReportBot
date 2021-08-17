@@ -307,9 +307,10 @@ func startNewReportConversation(userID string, interactionButtonChannelID string
 	currentReportsMutex.Lock()
 	defer currentReportsMutex.Unlock()
 
-	// TODO add cooldown function in here.
-
 	if isAlreadyInReportProcess(userID) {
+		// Adding the cooldown so the user can't spam! It's not completely fool proof due to multithreading, but that doesn't really matter
+		addUserToCooldownForReportButton(userID)
+
 		baseString := config.Messages.AlreadyCreatingReport
 		baseString = strings.ReplaceAll(baseString, "((CANCEL_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandCancel)
 		if !sendMessageToDM(baseString, userID) {
@@ -347,6 +348,9 @@ func startNewReportConversation(userID string, interactionButtonChannelID string
 	}
 
 	if !sendReportQuestion(report, userID, true) {
+		// Set the user on a cooldown
+		addUserToCooldownForReportButton(userID)
+
 		sendDMFailedMessageIfNeeded(userID, interactionButtonChannelID)
 		return false
 	}
@@ -420,6 +424,7 @@ type basicConfig struct {
 	ReportTimeoutMinutes             uint             `json:"report_timeout_minutes"`
 	ReportMaxAttachments             uint             `json:"report_max_attachments"`
 	RemoveButtonMessagesAfterSeconds uint             `json:"remove_button_messages_after_seconds"`
+	ReportButtonCooldownSeconds      uint             `json:"report_button_cooldown_seconds"`
 
 	Messages messagesDataConfig `json:"messages_data"`
 }
