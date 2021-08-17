@@ -192,7 +192,8 @@ func handleEditReport(report *reportData, userID, content string) {
 }
 
 func handleFinalSubmission(report *reportData, userID string) {
-	botSession.ChannelMessageSend(config.ReportChannelID, generateFinalBugReport(report, false, userID))
+	finalReport, _ := generateFinalBugReport(report, false, false, userID)
+	botSession.ChannelMessageSend(config.ReportChannelID, finalReport)
 
 	// Invalidate the report
 	report.canEdit = false
@@ -220,13 +221,23 @@ func handleSubmittingProcess(report *reportData, userID string) {
 	report.shouldReadAnswer = false
 	report.isInSubmitMenu = true
 
-	baseString := config.Messages.FinalReportSubmitAlmostReady
+	finalReport, tooLarge := generateFinalBugReport(report, true, false, userID)
+
+	var baseString string
+	if tooLarge {
+		report.canSubmit = false
+		finalReport, _ = generateFinalBugReport(report, true, true, userID)
+		baseString = config.Messages.ReportTooLargeWarning
+	} else {
+		baseString = config.Messages.FinalReportSubmitAlmostReady
+	}
+
 	baseString = strings.ReplaceAll(baseString, "{{CANCEL_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandCancel)
 	baseString = strings.ReplaceAll(baseString, "{{SUBMIT_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandSubmit)
 	baseString = strings.ReplaceAll(baseString, "{{EDIT_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandEdit)
 
 	sendMessageToDM(baseString, userID)
-	sendMessageToDM(generateFinalBugReport(report, true, userID), userID)
+	sendMessageToDM(finalReport, userID)
 }
 
 func deleteOngoingReport(userID string) {
@@ -241,7 +252,7 @@ func removeReportAndUserFromCache(userID string) {
 	delete(currentOngoingReports, userID)
 }
 
-func generateFinalBugReport(report *reportData, highlightQuestionNumber bool, userID string) string {
+func generateFinalBugReport(report *reportData, highlightQuestionNumber, safeMode bool, userID string) (finalReport string, tooLarge bool) {
 	var builder strings.Builder
 	for index, value := range report.data {
 		if highlightQuestionNumber {
@@ -251,7 +262,16 @@ func generateFinalBugReport(report *reportData, highlightQuestionNumber bool, us
 		}
 		builder.WriteString(value.question.PrettyFormat)
 		builder.WriteString("\n")
-		builder.WriteString(value.answer)
+		if safeMode {
+			if len(value.answer) >= 100 {
+				builder.WriteString(value.answer[:97])
+				builder.WriteString("...")
+			} else {
+				builder.WriteString(value.answer)
+			}
+		} else {
+			builder.WriteString(value.answer)
+		}
 		if index != len(report.data)-1 {
 			builder.WriteString("\n\n")
 		}
@@ -267,7 +287,8 @@ func generateFinalBugReport(report *reportData, highlightQuestionNumber bool, us
 
 	builder.WriteString(strings.ReplaceAll(config.Messages.EndMessageReport, "{{USER_TAG}}", "<@"+userID+">"))
 
-	return builder.String()
+	result := builder.String()
+	return result, len(result) > config.ReportSafeMessageLength
 }
 
 func startNewReportConversation(userID string, interactionButtonChannelID string) {
@@ -407,11 +428,13 @@ type basicConfig struct {
 	RemoveButtonMessagesAfterSeconds uint             `json:"remove_button_messages_after_seconds"`
 	ReportMessagesCooldownSeconds    uint             `json:"report_messages_cooldown_seconds"`
 	ReportCooldownMinutes            uint             `json:"report_cooldown_minutes"`
+	ReportSafeMessageLength          int              `json:"message_safe_length"`
 
 	Messages messagesDataConfig `json:"messages_data"`
 }
 
 type messagesDataConfig struct {
+	ReportTooLargeWarning        string `json:"report_too_large_warning"`
 	ReportCooldown               string `json:"report_cooldown"`
 	InactiveReport               string `json:"report_timeout"`
 	AlreadyCreatingReport        string `json:"already_creating_report"`
