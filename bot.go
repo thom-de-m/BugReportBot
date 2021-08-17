@@ -359,7 +359,17 @@ func startNewReportConversation(userID string, interactionButtonChannelID string
 // then we send some feedback that the user should open their DMs
 func sendDMFailedMessageIfNeeded(userID, interactionButtonChannelID string) {
 	if interactionButtonChannelID != "" {
-		go botSession.ChannelMessageSend(interactionButtonChannelID, strings.ReplaceAll(config.Messages.UnableToDMPerson, "{{USER_TAG}}", "<@"+userID+">"))
+		go func() {
+			message, messageErr := botSession.ChannelMessageSend(interactionButtonChannelID, strings.ReplaceAll(config.Messages.UnableToDMPerson, "{{USER_TAG}}", "<@"+userID+">"))
+			if messageErr != nil {
+				return
+			}
+
+			timer := time.NewTimer(time.Duration(config.RemoveButtonMessagesAfterSeconds) * time.Second)
+			<-timer.C
+
+			botSession.ChannelMessageDelete(message.ChannelID, message.ID)
+		}()
 	}
 }
 
@@ -404,11 +414,12 @@ type basicConfig struct {
 	BotDMCommandEdit   string `json:"bot_dm_command_edit"`
 	BotDMCommandCancel string `json:"bot_dm_command_cancel"`
 
-	SubmitReportChannelID string           `json:"submit_report_channel_id"`
-	ReportChannelID       string           `json:"report_channel_id"`
-	Questions             []reportQuestion `json:"questions"`
-	ReportTimeoutMinutes  uint             `json:"report_timeout_minutes"`
-	ReportMaxAttachments  uint             `json:"report_max_attachments"`
+	SubmitReportChannelID            string           `json:"submit_report_channel_id"`
+	ReportChannelID                  string           `json:"report_channel_id"`
+	Questions                        []reportQuestion `json:"questions"`
+	ReportTimeoutMinutes             uint             `json:"report_timeout_minutes"`
+	ReportMaxAttachments             uint             `json:"report_max_attachments"`
+	RemoveButtonMessagesAfterSeconds uint             `json:"remove_button_messages_after_seconds"`
 
 	Messages messagesDataConfig `json:"messages_data"`
 }
