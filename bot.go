@@ -69,34 +69,6 @@ func main() {
 	log.Println("Graceful shutdown!")
 }
 
-func startCleanupTimer() {
-	ticker := time.NewTicker(10 * time.Second)
-
-	for {
-		currentTime := <-ticker.C
-		doOngoingReportCleanup(currentTime)
-	}
-}
-
-func doOngoingReportCleanup(currentTime time.Time) {
-	currentReportsMutex.Lock()
-	defer currentReportsMutex.Unlock()
-
-	markedForRemoval := make([]string, 0)
-
-	for userID, report := range currentOngoingReports {
-		// If this validates true that means the last interaction with the user has been larger than our timeout
-		if currentTime.After(report.lastInteraction.Add(time.Duration(config.ReportTimeoutMinutes) * time.Minute)) {
-			markedForRemoval = append(markedForRemoval, userID)
-		}
-	}
-
-	for _, userID := range markedForRemoval {
-		delete(currentOngoingReports, userID)
-		sendMessageToDM(config.Messages.InactiveReport, userID)
-	}
-}
-
 func markReportAsActive(report *reportData) {
 	report.lastInteraction = time.Now()
 }
