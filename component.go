@@ -12,15 +12,46 @@ const (
 )
 
 var (
-	userCooldownsForReportButton = make(map[string]time.Time)
-	userCooldownsMutex           = new(sync.RWMutex)
+	userCooldownsMessages      = make(map[string]time.Time)
+	userCooldownsMessagesMutex = new(sync.RWMutex)
 )
 
-func addUserToCooldownForReportButton(userID string) {
-	userCooldownsMutex.Lock()
-	defer userCooldownsMutex.Unlock()
+func setAndCheckCooldownForUserMessages(userID string) (onCooldown bool) {
+	userCooldownsMessagesMutex.Lock()
+	defer userCooldownsMessagesMutex.Unlock()
 
-	userCooldownsForReportButton[userID] = time.Now().Add(time.Duration(config.ReportButtonCooldownSeconds) * time.Second)
+	onCooldown = isUserOnCooldownForMessages(userID, false)
+	if onCooldown {
+		return onCooldown
+	}
+
+	setCooldownForUserMessages(userID, false)
+	return
+}
+
+func setCooldownForUserMessages(userID string, lock bool) {
+	if lock {
+		userCooldownsMessagesMutex.Lock()
+		defer userCooldownsMessagesMutex.Unlock()
+	}
+
+	userCooldownsMessages[userID] = time.Now().Add(time.Duration(config.ReportMessagesCooldownSeconds) * time.Second)
+}
+
+func isUserOnCooldownForMessages(userID string, lock bool) bool {
+	if lock {
+		userCooldownsMessagesMutex.RLock()
+		defer userCooldownsMessagesMutex.RUnlock()
+	}
+
+	if cooldown, ok := userCooldownsMessages[userID]; ok {
+		// If this validates true then the user is still on a cooldown
+		if time.Now().Before(cooldown) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // This takes care of the slash command and interactions for the button that can be setup
@@ -38,17 +69,6 @@ func handleInteractions(session *discordgo.Session, interaction *discordgo.Inter
 
 		if interaction.Member == nil {
 			return
-		}
-
-		// Check if the user isn't on a cooldown!
-		userCooldownsMutex.RLock()
-		defer userCooldownsMutex.RUnlock()
-
-		if cooldown, ok := userCooldownsForReportButton[interaction.Member.User.ID]; ok {
-			// If this validates true then the user is still on a cooldown
-			if time.Now().Before(cooldown) {
-				return
-			}
 		}
 
 		// Handle the bug button click!

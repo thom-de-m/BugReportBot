@@ -24,6 +24,9 @@ var (
 var (
 	currentOngoingReports = make(map[string]*reportData)
 	currentReportsMutex   = new(sync.RWMutex)
+
+	currentUsersOnReportCooldown = make(map[string]time.Time)
+	currentUsersOnReportMutex    = new(sync.RWMutex)
 )
 
 func init() {
@@ -221,8 +224,41 @@ func handleEditReport(report *reportData, userID, content string) {
 
 func handleFinalSubmission(report *reportData, userID string) {
 	botSession.ChannelMessageSend(config.ReportChannelID, generateFinalBugReport(report, false, userID))
+
+	// Invalidate the report
+	report.canEdit = false
+	report.canSubmit = false
+	report.shouldReadAnswer = false
+	report.isInSubmitMenu = false
+
+	// Set report cooldown
+	setReportCooldownForUser(userID)
+
+	// Remove from cache
 	removeReportAndUserFromCache(userID)
-	sendMessageToDM(config.Messages.SuccessfullySubmittedReport, userID)
+
+	baseString := config.Messages.SuccessfullySubmittedReport
+	baseString = strings.ReplaceAll(baseString, "{{REPORT_COOLDOWN}}", strconv.Itoa(int(config.ReportCooldownMinutes)))
+	sendMessageToDM(baseString, userID)
+}
+
+func setReportCooldownForUser(userID string) {
+	currentUsersOnReportMutex.Lock()
+	defer currentUsersOnReportMutex.Unlock()
+
+	currentUsersOnReportCooldown[userID] = time.Now().Add(time.Duration(config.ReportCooldownMinutes) * time.Minute)
+}
+
+func isUserOnReportCooldown(userID string) bool {
+	currentUsersOnReportMutex.RLock()
+	defer currentUsersOnReportMutex.RUnlock()
+
+	if cooldown, ok := currentUsersOnReportCooldown[userID]; ok {
+		if time.Now().Before(cooldown) {
+			return true
+		}
+	}
+	return false
 }
 
 func handleSubmittingProcess(report *reportData, userID string) {
@@ -303,17 +339,30 @@ func isValidAnswer(report *reportData, content string) bool {
 	return true
 }
 
-func startNewReportConversation(userID string, interactionButtonChannelID string) (succeeded bool) {
+func startNewReportConversation(userID string, interactionButtonChannelID string) {
 	currentReportsMutex.Lock()
 	defer currentReportsMutex.Unlock()
 
 	if isAlreadyInReportProcess(userID) {
 		// Adding the cooldown so the user can't spam! It's not completely fool proof due to multithreading, but that doesn't really matter
-		addUserToCooldownForReportButton(userID)
+		if setAndCheckCooldownForUserMessages(userID) {
+			return
+		}
 
 		baseString := config.Messages.AlreadyCreatingReport
 		baseString = strings.ReplaceAll(baseString, "((CANCEL_COMMAND}}", config.BotDMCommandPrefix+config.BotDMCommandCancel)
 		if !sendMessageToDM(baseString, userID) {
+			sendDMFailedMessageIfNeeded(userID, interactionButtonChannelID)
+		}
+		return
+	}
+
+	if isUserOnReportCooldown(userID) {
+		if setAndCheckCooldownForUserMessages(userID) {
+			return
+		}
+
+		if !sendMessageToDM(config.Messages.ReportCooldown, userID) {
 			sendDMFailedMessageIfNeeded(userID, interactionButtonChannelID)
 		}
 		return
@@ -349,14 +398,15 @@ func startNewReportConversation(userID string, interactionButtonChannelID string
 
 	if !sendReportQuestion(report, userID, true) {
 		// Set the user on a cooldown
-		addUserToCooldownForReportButton(userID)
+		if setAndCheckCooldownForUserMessages(userID) {
+			return
+		}
 
 		sendDMFailedMessageIfNeeded(userID, interactionButtonChannelID)
-		return false
+		return
 	}
 
 	currentOngoingReports[userID] = report
-	return true
 }
 
 // If we can't create a report and the channel ID on which a person possibly clicked isn't empty
@@ -424,12 +474,14 @@ type basicConfig struct {
 	ReportTimeoutMinutes             uint             `json:"report_timeout_minutes"`
 	ReportMaxAttachments             uint             `json:"report_max_attachments"`
 	RemoveButtonMessagesAfterSeconds uint             `json:"remove_button_messages_after_seconds"`
-	ReportButtonCooldownSeconds      uint             `json:"report_button_cooldown_seconds"`
+	ReportMessagesCooldownSeconds    uint             `json:"report_messages_cooldown_seconds"`
+	ReportCooldownMinutes            uint             `json:"report_cooldown_minutes"`
 
 	Messages messagesDataConfig `json:"messages_data"`
 }
 
 type messagesDataConfig struct {
+	ReportCooldown               string `json:"report_cooldown"`
 	InactiveReport               string `json:"report_timeout"`
 	AlreadyCreatingReport        string `json:"already_creating_report"`
 	SuccessfullySubmittedReport  string `json:"thanks_for_submitting_a_report"`
