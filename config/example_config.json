@@ -1,12 +1,16 @@
 {
-    "bot_token": "YOUR BOT TOKEN!",
+    "bot_token": "Your Bot Token",
     "bot_dm_command_prefix": "!",
     "bot_dm_command_submit": "submit",
     "bot_dm_command_edit": "edit",
     "bot_dm_command_cancel": "cancel",
-    "report_channel_id": "Reports channel ID",
-    "submit_report_channel_id": "Submit A Report channel ID",
-    "report_timeout_minutes": 1,
+    "report_channel_id": "Report Channel ID",
+    "submit_report_channel_id": "Submit Report Channel ID",
+    "message_safe_length": 1950,
+    "report_cooldown_minutes": 2,
+    "report_messages_cooldown_seconds": 5,
+    "remove_button_messages_after_seconds": 30,
+    "report_timeout_minutes": 10,
     "report_max_attachments": 3,
     "questions": [
         {
@@ -36,14 +40,16 @@
             "pretty_format": "**Details:**"
         },
         {
-            "question": "Please provide any reproduction steps so we can do this bug ourselves!",
-            "pretty_format": "**Reproduction Steps:**"
+            "question": "Can you explain how to reproduce the issue you encountered or otherwise can you explain what you were doing before you encountered the issue?",
+            "pretty_format": "**Additional Information:**"
         }
     ],
     "messages_data": {
+        "report_too_large_warning": "**Warning!**\nBefore submitting your report you have to edit your report a bit to make it shorter, Discord has a character limit on messages and you have exceeded this limit with the report.\nYour report will be shown with a limited amount of characters for now.\n\nYou can edit any specific question by typing **{{EDIT_COMMAND}} <question number>** where **<question number>** is the number next to the title of an answer!\nAlternatively type **{{CANCEL_COMMAND}}** to cancel the report.",
+        "report_cooldown": "You can't submit a new report yet, you're still on a cooldown!",
         "report_timeout": "**Your report has been cancelled due to being inactive!**",
         "already_creating_report": "You're already in the process of creating a report. If you want to cancel the current report please use the command **((CANCEL_COMMAND}}** or alternatively keep answering the current on going question.",
-        "thanks_for_submitting_a_report": "You've successfully submitted your report. Thank you for your time!",
+        "thanks_for_submitting_a_report": "You've successfully submitted your report. Thank you for your time! You can submit another report after {{REPORT_COOLDOWN}} minutes.",
         "reached_max_attachments": "You've already used all available attachment slots, this attachment will not be uploaded in your final report!\nFeel free to continue answering the current question.",
         "attachments": "\n\n**Attachments:**",
         "attachment_uploaded_with_report": "You've successfully uploaded an attachment to your report, you can upload {{ATTACHMENTS_LEFT}} more attachment(s)!\nFeel free to continue answering the current question.",
@@ -57,6 +63,6 @@
         "interaction_not_allowed": "You're not allowed to use this!",
         "interaction_button_content": "Hi! In here you can submit a bug report.\nAll you need to do is click the \"Start A Report\" button below!",
         "unable_to_dm_person": "{{USER_TAG}} I'm unable to send you a Direct Message. Make sure you have opened your Direct Messages!\nYou can (temporarily) open them by right clicking the server icon -> Privacy Settings -> Enable direct messages from server members!",
-        "welcome_message": "Hello, in order to post your bug I will need some more information from you!\nI'll ask some questions and you may answer them if you like to.\n\nJust remember a couple of things!\n- You'll only have {{REPORT_TIMEOUT}} minutes for every question, otherwise the report will timeout.\n- You can upload an attachment (a picture for example) at any moment during the report.\n- Bugs caused by commands should not be reported!\n- If you made a mistake you can edit this at the end of the report.\n- You can cancel a report with the command **{{CANCEL_COMMAND}}**"
+        "welcome_message": "Hello, in order to post your bug I will need some more information from you!\nI'll ask some questions and you may answer them if you like to.\n\nJust remember a couple of things!\n- You'll only have {{REPORT_TIMEOUT}} minutes for every question, otherwise the report will timeout.\n- You can upload an attachment (a picture for example) at any moment during the report.\n- Bugs caused by commands should not be reported!\n- If you made a mistake you can edit this at the end of the report.\n- You can cancel a report with the command **{{CANCEL_COMMAND}}**\n- Discord has a character limit per message, this means that reports also have this. Please make sure to keep your reports a reasonable length!"
     }
 }
